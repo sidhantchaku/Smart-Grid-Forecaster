@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+.vercel/
+frontend/.vercel/
+backend/.vercel/
+backend/saved_models/*.keras
+backend/saved_models/*.json

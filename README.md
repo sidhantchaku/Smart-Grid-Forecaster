@@ -1,5 +1,7 @@
 # Smart Grid Forecast (SGF)
+
 Web App Link - [Click Here](https://frontend-lkq5h1yek-sidhantchakus-projects.vercel.app/)
+
 A hybrid deep learning system for electricity load forecasting, built as a full-stack web application. Train six time-series models in your browser, compare their accuracy on the ETTh1 benchmark, and get single-step predictions from a 96-point input sequence — no Python knowledge required to use it.
 
 The core model fuses two architectures that capture complementary temporal structure: **xLSTMTime** (recurrent + temporal convolution + multi-head attention) handles fine-grained step-to-step dynamics, while **PatchMixer** (patch-based MLP-Mixer) reads broad daily-cycle patterns. A learned fusion layer combines both. Pre-processing uses **Federated Normalisation (FedNorm)**, which normalises training shards independently to reduce distribution shift between training and test periods — a single preprocessing trick that adds ~0.012 R² for free.

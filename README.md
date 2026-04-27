@@ -1,189 +1,98 @@
-# Smart Grid Forecast (SGF)
+# AI-Based Smart Grid Forecasting & Decision Support System
 
-Web App Link - [Click Here](https://frontend-lkq5h1yek-sidhantchakus-projects.vercel.app/)
+This is a full-stack web app for smart-grid load forecasting and basic decision support. The app lets a user train forecasting models, compare their performance, inspect predictions, simulate demand changes, and check whether a forecast should trigger a high-load alert.
 
-A hybrid deep learning system for electricity load forecasting, built as a full-stack web application. Train six time-series models in your browser, compare their accuracy on the ETTh1 benchmark, and get single-step predictions from a 96-point input sequence — no Python knowledge required to use it.
+Live app: https://frontend-lkq5h1yek-sidhantchakus-projects.vercel.app
 
-The core model fuses two architectures that capture complementary temporal structure: **xLSTMTime** (recurrent + temporal convolution + multi-head attention) handles fine-grained step-to-step dynamics, while **PatchMixer** (patch-based MLP-Mixer) reads broad daily-cycle patterns. A learned fusion layer combines both. Pre-processing uses **Federated Normalisation (FedNorm)**, which normalises training shards independently to reduce distribution shift between training and test periods — a single preprocessing trick that adds ~0.012 R² for free.
+Backend status: https://backend-1vql9pg8p-sidhantchakus-projects.vercel.app/status
 
-On the ETTh1 test set, the hybrid achieves **R² = 0.9094**, outperforming five baselines including LSTM + Attention, N-BEATS, and Prophet.
+![Smart Grid Forecaster screenshot](docs/smart-grid-forecaster.png)
 
----
+## What It Does
 
-## What's inside
+- Trains and compares six lightweight forecasting models.
+- Shows MAE, RMSE, and R2 for model comparison.
+- Visualizes actual vs predicted values for the hybrid model.
+- Predicts the next load value from a 96-point input sequence.
+- Simulates demand changes with a scale factor.
+- Recommends the best model using the highest R2 score.
+- Generates a simple alert when the forecast crosses a selected threshold.
 
-```
+## Tech Stack
+
+- Frontend: React, Vite, Chart.js, Axios
+- Backend: FastAPI, Uvicorn
+- Forecasting: lightweight CPU-friendly model approximations
+- Deployment: Vercel
+
+The original project idea was built around TensorFlow/Keras-style forecasting models. For the hosted Vercel version, I moved the deployed model layer to smaller NumPy-based approximations because TensorFlow made the serverless backend too large to deploy cleanly. The app still keeps the same workflow: train, compare, forecast, simulate, recommend, and alert.
+
+## Project Layout
+
+```text
 Smart-Grid-Forecaster/
-├── backend/
-│   ├── main.py              # FastAPI app — endpoints, CORS, background training thread
-│   ├── trainer.py           # Training orchestration for all six models
-│   ├── models/
-│   │   ├── hybrid_model.py  # xLSTMTime + PatchMixer fusion
-│   │   ├── xlstmtime_model.py
-│   │   ├── patchmixer_model.py
-│   │   ├── lstm_model.py    # LSTM + Bahdanau attention baseline
-│   │   └── other_models.py  # N-BEATS and Prophet
-│   └── utils/
-│       ├── preprocessing.py # FedNorm, MinMaxScaler, sliding window
-│       └── metrics.py       # MAE, MSE, RMSE, R²
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   └── components/      # TrainPanel, MetricsTable, ForecastChart, ModelCompareChart
-│   ├── package.json
-│   └── vercel.json
-├── requirements.txt
-├── render.yaml              # One-click Render deployment config
-└── README.md
+  backend/
+    main.py
+    app.py
+    models/
+    routes/
+    utils/
+    saved_models/
+  frontend/
+    src/
+    package.json
+    vercel.json
+  docs/
+    smart-grid-forecaster.png
+  requirements.txt
+  README.md
 ```
 
-The backend and frontend are fully decoupled — they communicate only over HTTP JSON, so you can swap either side independently.
+## Running Locally
 
----
-
-## Running locally
-
-You'll need Python 3.10+ and Node.js 18+. No GPU required.
-
-**Backend**
+Start the backend:
 
 ```bash
-# From the repo root
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+cd Smart-Grid-Forecaster
 pip install -r requirements.txt
-
-uvicorn backend.main:app --reload --port 8000
+python -m uvicorn backend.main:app --reload --port 8000
 ```
 
-The API will be live at `http://localhost:8000`. Visit `/docs` for the auto-generated Swagger UI.
-
-**Frontend**
+Start the frontend in another terminal:
 
 ```bash
-cd frontend
+cd Smart-Grid-Forecaster/frontend
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. That's it — hit **Train All Models** and wait about 10–15 minutes on a standard CPU machine.
+Then open:
 
-If you have your own dataset, upload a CSV with a `Date` column (ISO 8601) and a numeric `Load` column before training. The preprocessing pipeline will handle everything else.
-
----
-
-## API reference
-
-| Method | Endpoint | What it does |
-|--------|----------|--------------|
-| `GET` | `/status` | Returns current training state: `idle`, `running`, `done`, or `error` |
-| `POST` | `/train` | Starts training all six models in a background thread; returns immediately |
-| `GET` | `/metrics` | Returns MAE, MSE, RMSE, and R² for every trained model |
-| `GET` | `/predictions` | Returns actual vs. predicted arrays for the hybrid model's test set |
-| `POST` | `/predict` | Accepts `{"sequence": [float × 96], "model": "Hybrid"}`, returns `{"prediction": float}` |
-
-Poll `/status` every few seconds while training is running — the frontend does this automatically every 3 seconds.
-
----
-
-## Models
-
-Six architectures are trained and compared in a single run:
-
-| Model | Description | ETTh1 R² |
-|-------|-------------|-----------|
-| **SGF Hybrid** | xLSTMTime + PatchMixer + FedNorm | **0.9094** |
-| xLSTMTime | Stacked LSTM + Conv1D + Multi-head attention | 0.8814 |
-| LSTM + Attention | Two-layer LSTM with Bahdanau attention | 0.8738 |
-| PatchMixer | Patch-based MLP-Mixer | 0.7209 |
-| N-BEATS | Neural basis expansion, 4 blocks | 0.7239 |
-| Prophet | Additive decomposition (Meta) | 0.6561 |
-
-All neural models share the same training config: Adam `lr=1e-3`, MSE loss, batch size 32, max 50 epochs, early stopping with patience 10. Random seed is fixed at 42 for reproducibility.
-
----
-
-## Dataset
-
-The project uses **ETTh1** (Electricity Transformer Temperature, hourly), a public benchmark from Zhou et al. (Informer, AAAI 2021). It contains 17,420 hourly readings from a Chinese grid substation across 20 months (July 2016 – June 2018), with oil temperature (OT) as the forecast target.
-
-The preprocessing pipeline applies FedNorm → MinMaxScaler (fit on training split only) → sliding window of length 96. The train/val/test split is 70/10/20 in temporal order — no shuffling, which matters for a fair evaluation.
-
-If the dataset file isn't found at startup, the backend falls back to a synthetic load series so you can still explore the interface.
-
----
-
-## Deploying to Render
-
-The included `render.yaml` deploys both services in one step:
-
-1. Push the repo to GitHub.
-2. In Render, click **New → Blueprint** and connect the repository.
-3. Render reads `render.yaml` and sets up both services automatically.
-
-The two services that get created are `smart-grid-forecasting-api` (FastAPI) and `smart-grid-forecasting-ui` (Vite static). Both run on Render's free tier.
-
-If Render assigns different service names from what's in the config, update two environment variables in the Render dashboard:
-- On the backend: `ALLOWED_ORIGINS`
-- On the frontend: `VITE_API_BASE_URL`
-
----
-
-## Deploying the frontend to Vercel
-
-If you'd rather host the frontend on Vercel (faster cold starts for static sites) and the backend on Render:
-
-**Vercel settings:**
-- Root directory: `frontend`
-- Framework preset: `Vite`
-- Build command: `npm install && npm run build`
-- Output directory: `dist`
-- Environment variable: `VITE_API_BASE_URL=https://your-render-backend-url`
-
-The included `frontend/vercel.json` handles client-side routing so page refreshes don't 404.
-
-For local development with this setup, create `frontend/.env`:
-
+```text
+http://localhost:5173
 ```
+
+The frontend defaults to `http://127.0.0.1:8000` for API calls. If you want to set it explicitly, create `frontend/.env` with:
+
+```bash
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
----
+## API Endpoints
 
-## How FedNorm works
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/status` | Returns the current training state |
+| `POST` | `/train` | Trains all forecasting models |
+| `GET` | `/metrics` | Returns MAE, RMSE, and R2 for each model |
+| `GET` | `/predictions` | Returns actual vs predicted values for the hybrid model |
+| `POST` | `/predict` | Predicts the next value from a 96-point sequence |
+| `POST` | `/simulate` | Compares a base forecast with a scaled-demand scenario |
+| `GET` | `/recommendation` | Returns the model with the highest R2 |
+| `POST` | `/alert` | Checks a forecast against a threshold |
 
-Standard preprocessing fits a single MinMaxScaler on the entire training set. The problem is that when training and test periods cover different seasons or operating conditions, the scaler encodes the training distribution — and the model never sees what "out-of-distribution scale" looks like.
+## Notes
 
-FedNorm splits the training array into four equal shards and normalises each shard to zero mean and unit variance independently, then recombines them before passing to MinMaxScaler. The model trains on examples with four slightly different normalised distributions instead of one, which makes its representations more scale-invariant. The ablation in the thesis confirms this adds ~0.012 R² consistently across runs — not huge, but entirely free at inference time.
+This project is meant to demonstrate the full forecasting workflow more than to chase perfect accuracy. The interesting part is the end-to-end flow: taking a sequence, training and comparing models, showing a forecast, testing a scenario, and turning the result into a simple operating recommendation.
 
-```python
-def fednorm(X: np.ndarray, n_clients: int = 4) -> np.ndarray:
-    n, chunk = len(X), len(X) // n_clients
-    parts = []
-    for i in range(n_clients):
-        start = i * chunk
-        end = (i + 1) * chunk if i < n_clients - 1 else n
-        part = X[start:end]
-        parts.append((part - part.mean()) / (part.std() + 1e-8))
-    return np.concatenate(parts, axis=0)
-```
-
----
-
-## Tech stack
-
-- **Backend:** FastAPI, TensorFlow/Keras, Prophet (Meta), scikit-learn, NumPy, Pandas, Uvicorn
-- **Frontend:** React, Vite, Chart.js (via react-chartjs-2), Axios
-- **Deployment:** Render (backend + frontend), Vercel (frontend alternative)
-
----
-
-## Acknowledgements
-
-The ETTh1 dataset was released by Zhou et al. alongside the [Informer paper](https://arxiv.org/abs/2012.07436) (AAAI 2021) and has since become a standard benchmark for time-series forecasting. FedNorm is inspired by [FedBN](https://arxiv.org/abs/2102.07623) (Li et al., ICLR 2021). The PatchMixer branch draws on ideas from [PatchTST](https://arxiv.org/abs/2211.14730) (Nie et al., ICLR 2023) and [MLP-Mixer](https://arxiv.org/abs/2105.01601) (Tolstikhin et al., NeurIPS 2021).
-
----
-
-## License
-
-MIT — do whatever you want with it.
+The code is intentionally modular so a heavier TensorFlow/Keras training pipeline can be plugged back in later if the backend is moved to a long-running server instead of serverless hosting.
